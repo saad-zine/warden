@@ -132,7 +132,7 @@ export function Agents() {
                   ? 'border-success/30 bg-tint-success/60'
                   : level === 'Battle-tested'
                     ? 'border-accent/30 bg-tint-teal/60'
-                    : 'border-border bg-white',
+                    : 'border-border bg-paper',
               )}
             >
               <p className="flex items-center gap-2 text-sm font-semibold text-ink">

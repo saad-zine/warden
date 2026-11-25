@@ -101,7 +101,7 @@ export function Evals() {
                   <button
                     onClick={() => setSelected(ev)}
                     className={cn(
-                      'flex w-full items-center gap-3 px-5 py-3 text-left hover:bg-wash',
+                      'flex w-full cursor-pointer items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-wash focus:outline-none focus-visible:bg-wash focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/50',
                       selected?.id === ev.id && 'bg-tint-teal',
                     )}
                   >

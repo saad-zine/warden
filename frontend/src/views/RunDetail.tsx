@@ -61,10 +61,10 @@ function StepRow({ step, index }: { step: TraceStep; index: number }) {
       <div
         className={cn(
           'rounded-lg border px-4 py-3',
-          isGate ? 'border-warning/30 bg-tint-warning/60' : isError ? 'border-error/30 bg-tint-error/60' : 'border-border bg-white',
+          isGate ? 'border-warning/30 bg-tint-warning/60' : isError ? 'border-error/30 bg-tint-error/60' : 'border-border bg-paper',
         )}
       >
-        <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-2 text-left">
+        <button onClick={() => setOpen((v) => !v)} className="flex w-full cursor-pointer items-center gap-2 rounded-md text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50">
           <span className="font-mono text-xs text-faint">{String(index + 1).padStart(2, '0')}</span>
           <Badge tone={isGate ? 'warning' : isError ? 'error' : 'teal'}>{STEP_LABEL[step.type]}</Badge>
           <span className="font-mono text-sm font-medium text-ink">{step.name}</span>
@@ -79,7 +79,7 @@ function StepRow({ step, index }: { step: TraceStep; index: number }) {
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-faint">Input</p>
-              <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-[#111111] px-3 py-2 font-mono text-xs leading-relaxed text-slate-100">
+              <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded-lg border border-border/40 bg-[#111111] px-3 py-2 font-mono text-xs leading-relaxed text-slate-100 dark:border-border dark:bg-[#0d0f10]">
                 {step.input}
               </pre>
             </div>
@@ -223,7 +223,7 @@ export function RunDetail({ runId, onBack }: { runId: string; onBack: () => void
 
   return (
     <div className="space-y-5">
-      <button onClick={onBack} className="inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-ink">
+      <button onClick={onBack} className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-1 py-0.5 text-sm font-medium text-muted transition-colors hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50">
         <ArrowLeft className="h-4 w-4" strokeWidth={1.5} /> Back to runs
       </button>
 
@@ -314,10 +314,10 @@ export function RunDetail({ runId, onBack }: { runId: string; onBack: () => void
             <div className="min-w-0 flex-1">
               <h3 className="text-sm font-semibold text-ink">Paused at an approval gate</h3>
               <p className="mt-1 text-sm text-body">
-                The agent wants to run <code className="rounded bg-white px-1.5 py-0.5 font-mono text-xs ring-1 ring-inset ring-warning/30">{run.pending_approval.tool}</code> with
+                The agent wants to run <code className="rounded bg-paper px-1.5 py-0.5 font-mono text-xs ring-1 ring-inset ring-warning/30">{run.pending_approval.tool}</code> with
                 these arguments:
               </p>
-              <pre className="mt-2 overflow-x-auto rounded-lg border border-border bg-white px-3 py-2 font-mono text-xs text-body">
+              <pre className="mt-2 overflow-x-auto rounded-lg border border-border bg-paper px-3 py-2 font-mono text-xs text-body">
                 {JSON.stringify(run.pending_approval.args, null, 2)}
               </pre>
               <input

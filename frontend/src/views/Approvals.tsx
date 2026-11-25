@@ -48,7 +48,7 @@ function ApprovalCard({ approval, onDecided }: { approval: Approval; onDecided: 
 
         <div className="mt-4">
           <p className="text-xs font-medium uppercase tracking-wide text-faint">Arguments</p>
-          <pre className="mt-1 overflow-x-auto rounded-lg bg-[#111111] px-3 py-2.5 font-mono text-xs leading-relaxed text-slate-100">
+          <pre className="mt-1 overflow-x-auto rounded-lg border border-border/40 bg-[#111111] px-3 py-2.5 font-mono text-xs leading-relaxed text-slate-100 dark:border-border dark:bg-[#0d0f10]">
             {JSON.stringify(approval.args, null, 2)}
           </pre>
         </div>

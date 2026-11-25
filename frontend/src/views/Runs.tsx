@@ -158,7 +158,7 @@ export function Runs({
               </thead>
               <tbody className="divide-y divide-border/60">
                 {runs.map((r) => (
-                  <tr key={r.run_id} className="cursor-pointer hover:bg-wash" onClick={() => onOpenRun(r.run_id)}>
+                  <tr key={r.run_id} className="cursor-pointer transition-colors hover:bg-wash" onClick={() => onOpenRun(r.run_id)}>
                     <td className="max-w-sm px-5 py-3">
                       <span className="block truncate font-medium text-ink">{r.task}</span>
                       <span className="font-mono text-xs text-faint">{r.run_id}</span>

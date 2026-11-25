@@ -122,7 +122,7 @@ export function AskBox({
     <div>
       <div
         className={cn(
-          'rounded-xl border border-border bg-white transition-colors',
+          'rounded-xl border border-border bg-paper transition-colors',
           'focus-within:border-accent focus-within:ring-4 focus-within:ring-accent/10',
         )}
       >
@@ -160,7 +160,7 @@ export function AskBox({
               onClick={() => setMenuOpen((v) => !v)}
               aria-label="Starter tasks"
               title="Starter tasks"
-              className="rounded-md p-1.5 text-muted hover:bg-wash hover:text-ink"
+              className="cursor-pointer rounded-md p-1.5 text-muted transition-colors hover:bg-wash hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
             >
               <Slash className="h-4 w-4" strokeWidth={1.5} />
             </button>
@@ -172,14 +172,14 @@ export function AskBox({
                   className="fixed inset-0 z-10 cursor-default"
                   onClick={() => setMenuOpen(false)}
                 />
-                <div className="absolute bottom-10 right-0 z-20 w-80 rounded-lg border border-border bg-white py-1 shadow-md">
+                <div className="absolute bottom-10 right-0 z-20 w-80 rounded-lg border border-border bg-paper py-1 shadow-md">
                   <p className="px-3 pb-1 pt-2 text-xs font-medium text-faint">Starter tasks</p>
                   {TEMPLATES.map((t) => (
                     <button
                       key={t}
                       type="button"
                       onClick={() => pickTemplate(t)}
-                      className="block w-full px-3 py-2 text-left text-[13px] leading-snug text-body hover:bg-wash hover:text-ink"
+                      className="block w-full cursor-pointer px-3 py-2 text-left text-[13px] leading-snug text-body transition-colors hover:bg-wash hover:text-ink focus:outline-none focus-visible:bg-wash focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/50"
                     >
                       {t}
                     </button>
@@ -195,7 +195,7 @@ export function AskBox({
               aria-label={listening ? 'Stop listening' : 'Dictate a task'}
               title={listening ? 'Stop listening' : 'Dictate a task'}
               className={cn(
-                'rounded-md p-1.5 hover:bg-wash hover:text-ink',
+                'cursor-pointer rounded-md p-1.5 transition-colors hover:bg-wash hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50',
                 listening ? 'bg-tint-error text-error' : 'text-muted',
               )}
             >
@@ -208,7 +208,7 @@ export function AskBox({
             disabled={!task.trim() || submitting}
             aria-label="Start run"
             title="Start run"
-            className="ml-1 flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-white transition-colors hover:bg-accent-dark disabled:cursor-not-allowed disabled:bg-tint-neutral disabled:text-faint"
+            className="ml-1 flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg bg-accent text-white transition-colors hover:bg-accent-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:cursor-not-allowed disabled:bg-tint-neutral disabled:text-faint"
           >
             <ArrowUp className="h-4 w-4" strokeWidth={1.5} />
           </button>

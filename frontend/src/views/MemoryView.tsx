@@ -129,7 +129,7 @@ export function MemoryView() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {items.map((item) => (
-            <Card key={item.id} className="flex flex-col p-5 transition-shadow hover:shadow-sm">
+            <Card key={item.id} className="flex flex-col p-5">
               <div className="flex items-start gap-2.5">
                 <Brain className="mt-0.5 h-4 w-4 shrink-0 text-accent" strokeWidth={1.5} />
                 <p className="flex-1 text-sm leading-relaxed text-ink">{item.content}</p>
@@ -141,7 +141,7 @@ export function MemoryView() {
                 <span className="ml-auto flex gap-1">
                   <button
                     onClick={() => openEdit(item)}
-                    className="rounded-md p-1.5 text-faint hover:bg-wash hover:text-ink"
+                    className="cursor-pointer rounded-md p-1.5 text-faint transition-colors hover:bg-wash hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
                     aria-label="Edit memory"
                   >
                     <Pencil className="h-4 w-4" strokeWidth={1.5} />
@@ -149,7 +149,7 @@ export function MemoryView() {
                   <button
                     onClick={() => remove(item)}
                     disabled={deletingId === item.id}
-                    className="rounded-md p-1.5 text-faint hover:bg-tint-error hover:text-error disabled:opacity-50"
+                    className="cursor-pointer rounded-md p-1.5 text-faint transition-colors hover:bg-tint-error hover:text-error focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:cursor-not-allowed disabled:opacity-50"
                     aria-label="Delete memory"
                   >
                     <Trash2 className="h-4 w-4" strokeWidth={1.5} />

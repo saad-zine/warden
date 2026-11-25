@@ -5,6 +5,18 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Warden — Agent Reliability Platform</title>
+    <!-- Apply the saved/system theme before first paint (no white flash on dark). Mirrors lib/theme.tsx initTheme. -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('warden-theme');
+          var dark =
+            t === 'dark' ||
+            (t !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

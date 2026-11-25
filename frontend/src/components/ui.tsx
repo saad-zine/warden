@@ -5,13 +5,13 @@ import { cn } from '../lib/cn';
 
 /** Shared form control styling (DESIGN.md: white, 1px hairline border, teal focus ring). */
 export const inputCls =
-  'w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none focus:ring-4 focus:ring-accent/10 disabled:bg-wash disabled:text-faint';
+  'w-full rounded-lg border border-border bg-paper px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none focus:ring-4 focus:ring-accent/10 disabled:bg-wash disabled:text-faint';
 export const selectCls =
-  'rounded-lg border border-border bg-white px-2.5 py-2 text-sm text-body focus:border-accent focus:outline-none focus:ring-4 focus:ring-accent/10';
+  'cursor-pointer rounded-lg border border-border bg-paper px-2.5 py-2 text-sm text-body focus:border-accent focus:outline-none focus:ring-4 focus:ring-accent/10';
 
 export function Card({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn('rounded-lg border border-border bg-white', className)}>
+    <div className={cn('rounded-lg border border-border bg-paper', className)}>
       {children}
     </div>
   );
@@ -46,7 +46,7 @@ export function SectionHeader({ title, meta, action }: { title: string; meta?: s
 type BadgeTone = 'neutral' | 'teal' | 'success' | 'warning' | 'error';
 
 const toneClasses: Record<BadgeTone, string> = {
-  neutral: 'bg-tint-neutral text-[#4b5563]',
+  neutral: 'bg-tint-neutral text-body',
   teal: 'bg-tint-teal text-accent',
   success: 'bg-tint-success text-success',
   warning: 'bg-tint-warning text-warning',
@@ -104,13 +104,13 @@ export function Button({
 }) {
   const variants: Record<ButtonVariant, string> = {
     primary:
-      'border border-ink bg-ink text-white hover:bg-black disabled:border-border disabled:bg-wash disabled:text-faint',
+      'border border-ink bg-ink text-white hover:bg-black dark:text-paper dark:hover:bg-white disabled:border-border disabled:bg-wash disabled:text-faint',
     accent:
       'border border-accent bg-accent text-white hover:bg-accent-dark disabled:border-border disabled:bg-wash disabled:text-faint',
     secondary:
-      'border border-border bg-white text-ink hover:border-border-strong hover:bg-wash disabled:border-border disabled:bg-wash disabled:text-faint',
+      'border border-border bg-paper text-ink hover:border-border-strong hover:bg-wash disabled:border-border disabled:bg-wash disabled:text-faint',
     danger:
-      'border border-error bg-error text-white hover:bg-[#b91c1c] disabled:border-border disabled:bg-wash disabled:text-faint',
+      'border border-error bg-error text-white hover:bg-[#b91c1c] dark:hover:bg-[#dc2626] disabled:border-border disabled:bg-wash disabled:text-faint',
     ghost:
       'border border-transparent bg-transparent text-muted hover:bg-wash hover:text-ink disabled:text-faint',
   };
@@ -125,7 +125,7 @@ export function Button({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        'inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition-colors focus:outline-none focus-visible:ring-4 focus-visible:ring-accent/20 disabled:cursor-not-allowed',
+        'inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg font-medium transition-colors focus:outline-none focus-visible:ring-4 focus-visible:ring-accent/20 disabled:cursor-not-allowed',
         variants[variant],
         sizes[size],
         className,
@@ -178,9 +178,9 @@ export function Sparkline({ values, width = 160, height = 40 }: { values: number
   const area = `2,${height - 2} ${pts.join(' ')} ${width - 2},${height - 2}`;
   return (
     <svg width={width} height={height} className="overflow-visible" role="img" aria-label="Reliability trend">
-      <polygon points={area} fill="#ccfbf1" opacity={0.6} />
-      <polyline points={pts.join(' ')} fill="none" stroke="#0d9488" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-      <circle cx={pts[pts.length - 1].split(',')[0]} cy={pts[pts.length - 1].split(',')[1]} r={3} fill="#0d9488" />
+      <polygon points={area} className="fill-[#ccfbf1] dark:fill-[#134e4a]" opacity={0.6} />
+      <polyline points={pts.join(' ')} fill="none" className="stroke-accent" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={pts[pts.length - 1].split(',')[0]} cy={pts[pts.length - 1].split(',')[1]} r={3} className="fill-accent" />
     </svg>
   );
 }
@@ -215,14 +215,14 @@ export function Modal({
   children: ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 dark:bg-black/70" onClick={onClose}>
       <div
-        className="w-full max-w-lg rounded-xl border border-border bg-white shadow-md"
+        className="w-full max-w-lg rounded-xl border border-border bg-paper shadow-md"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
           <h3 className="text-base font-semibold text-ink">{title}</h3>
-          <button onClick={onClose} className="rounded-md p-1.5 text-muted hover:bg-wash hover:text-ink" aria-label="Close">
+          <button onClick={onClose} className="cursor-pointer rounded-md p-1.5 text-muted transition-colors hover:bg-wash hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50" aria-label="Close">
             <X className="h-4 w-4" strokeWidth={1.5} />
           </button>
         </div>

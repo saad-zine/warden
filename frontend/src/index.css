@@ -1,30 +1,81 @@
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
-@theme {
+/* Class-based dark mode: `.dark` on <html> (toggled by lib/theme.tsx). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Clean design system — Attio / folk inspired (see DESIGN.md).
+ * The palette lives in CSS variables so it can flip for dark mode;
+ * @theme inline maps the Tailwind color tokens to those variables, so
+ * existing classes (bg-paper, text-ink, border-border, bg-wash,
+ * text-muted, bg-tint-*, …) automatically adapt. Light mode is unchanged. */
+:root {
+  --paper: #ffffff;
+  --wash: #fafafa;
+  --ink: #111111;
+  --body: #333333;
+  --muted: #6b7280;
+  --faint: #9ca3af;
+  --border: #e5e7eb;
+  --border-strong: #d1d5db;
+  --accent: #0d9488;
+  --accent-dark: #0f766e;
+  --success: #16a34a;
+  --warning: #d97706;
+  --error: #dc2626;
+  --info: #2563eb;
+  --tint-success: #f0fdf4;
+  --tint-warning: #fffbeb;
+  --tint-error: #fef2f2;
+  --tint-teal: #f0fdf9;
+  --tint-neutral: #f3f4f6;
+}
+
+.dark {
+  --paper: #101214;
+  --wash: #17191c;
+  --ink: #f5f6f7;
+  --body: #d4d7da;
+  --muted: #9aa0a6;
+  --faint: #6b7280;
+  --border: #26292e;
+  --border-strong: #3a3e44;
+  --accent: #0d9488;
+  --accent-dark: #14b8a6;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --info: #3b82f6;
+  --tint-success: #132a1e;
+  --tint-warning: #2b2113;
+  --tint-error: #2e1a1a;
+  --tint-teal: #0f2a26;
+  --tint-neutral: #1e2126;
+}
+
+@theme inline {
   --font-sans: "Manrope", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  /* Clean design system — Attio / folk inspired (see DESIGN.md) */
-  --color-ink: #111111;
-  --color-body: #333333;
-  --color-muted: #6b7280;
-  --color-faint: #9ca3af;
-  --color-paper: #ffffff;
-  --color-wash: #fafafa;
-  --color-border: #e5e7eb;
-  --color-border-strong: #d1d5db;
-  --color-accent: #0d9488;
-  --color-accent-dark: #0f766e;
-  --color-success: #16a34a;
-  --color-warning: #d97706;
-  --color-error: #dc2626;
-  --color-info: #2563eb;
-  --color-tint-success: #f0fdf4;
-  --color-tint-warning: #fffbeb;
-  --color-tint-error: #fef2f2;
-  --color-tint-teal: #f0fdf9;
-  --color-tint-neutral: #f3f4f6;
+  --color-ink: var(--ink);
+  --color-body: var(--body);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-paper: var(--paper);
+  --color-wash: var(--wash);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-dark: var(--accent-dark);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+  --color-info: var(--info);
+  --color-tint-success: var(--tint-success);
+  --color-tint-warning: var(--tint-warning);
+  --color-tint-error: var(--tint-error);
+  --color-tint-teal: var(--tint-teal);
+  --color-tint-neutral: var(--tint-neutral);
 }
 
 html,
@@ -35,8 +86,8 @@ body,
 
 body {
   margin: 0;
-  background: #ffffff;
-  color: #333333;
+  background: var(--paper);
+  color: var(--body);
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.6;
@@ -49,10 +100,18 @@ body {
   background: #ccfbf1;
 }
 
+.dark ::selection {
+  background: #134e4a;
+  color: #f5f6f7;
+}
+
 /* Thin, unobtrusive scrollbars */
 * {
   scrollbar-width: thin;
   scrollbar-color: #d1d5db transparent;
+}
+.dark * {
+  scrollbar-color: #3a3e44 transparent;
 }
 *::-webkit-scrollbar {
   width: 8px;
@@ -61,4 +120,23 @@ body {
 *::-webkit-scrollbar-thumb {
   background: #d1d5db;
   border-radius: 999px;
+}
+.dark *::-webkit-scrollbar-thumb {
+  background: #3a3e44;
+}
+
+/* Every native button / link / select reads as clickable. Tailwind v4
+ * preflight sets buttons to `cursor: default`; this restores the pointer
+ * (and `not-allowed` for disabled controls) app-wide, on top of the
+ * explicit cursor-pointer classes on the components themselves. */
+button,
+a,
+select,
+[role='button'] {
+  cursor: pointer;
+}
+button:disabled,
+select:disabled,
+input:disabled {
+  cursor: not-allowed;
 }

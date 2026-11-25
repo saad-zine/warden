@@ -83,7 +83,7 @@ export function Dashboard({ onOpenRun, onGoApprovals, onGoRuns }: { onOpenRun: (
                 setAskSeed((n) => n + 1);
                 setTimeout(() => askRef.current?.focus(), 0);
               }}
-              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1.5 text-[13px] text-body transition-colors hover:border-border-strong hover:bg-wash"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-border bg-paper px-3 py-1.5 text-[13px] text-body transition-colors hover:border-border-strong hover:bg-wash focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
             >
               <Calendar className="h-3.5 w-3.5 text-muted" strokeWidth={1.5} />
               {s.label}
@@ -167,7 +167,7 @@ export function Dashboard({ onOpenRun, onGoApprovals, onGoRuns }: { onOpenRun: (
               title="Top failure modes"
               subtitle="Where reliability is lost — each one has a quest attached"
               action={
-                <button onClick={onGoApprovals} className="inline-flex items-center gap-1 text-[13px] font-medium text-accent hover:text-accent-dark">
+                <button onClick={onGoApprovals} className="inline-flex cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 text-[13px] font-medium text-accent transition-colors hover:text-accent-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50">
                   Review queue <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.5} />
                 </button>
               }
@@ -195,7 +195,7 @@ export function Dashboard({ onOpenRun, onGoApprovals, onGoRuns }: { onOpenRun: (
         <SectionHeader
           title="Recent runs"
           action={
-            <button onClick={onGoRuns} className="inline-flex items-center gap-1 text-[13px] font-medium text-accent hover:text-accent-dark">
+            <button onClick={onGoRuns} className="inline-flex cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 text-[13px] font-medium text-accent transition-colors hover:text-accent-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50">
               View all <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.5} />
             </button>
           }
@@ -225,7 +225,7 @@ export function Dashboard({ onOpenRun, onGoApprovals, onGoRuns }: { onOpenRun: (
                 </thead>
                 <tbody className="divide-y divide-border/60">
                   {recentRuns.map((r) => (
-                    <tr key={r.run_id} className="cursor-pointer hover:bg-wash" onClick={() => onOpenRun(r.run_id)}>
+                    <tr key={r.run_id} className="cursor-pointer transition-colors hover:bg-wash" onClick={() => onOpenRun(r.run_id)}>
                       <td className="max-w-xs truncate px-5 py-3 font-medium text-ink">{r.task}</td>
                       <td className="px-5 py-3 capitalize text-body">{r.agent_id}</td>
                       <td className="px-5 py-3"><StatusBadge status={r.status} /></td>
