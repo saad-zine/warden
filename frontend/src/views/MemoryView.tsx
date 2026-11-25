@@ -1,9 +1,10 @@
 import { Brain, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import { markStepDone } from '../lib/gettingStarted';
 import { fmtDateTime } from '../lib/format';
 import type { Agent, MemoryItem } from '../lib/types';
-import { Badge, Button, Card, EmptyState, Modal } from '../components/ui';
+import { Badge, Button, Card, EmptyState, Modal, inputCls, selectCls } from '../components/ui';
 
 const CATEGORIES = ['vendor', 'policy', 'preference', 'constraint', 'fact'] as const;
 
@@ -58,6 +59,7 @@ export function MemoryView() {
     try {
       if (modal === 'add') {
         await api.addMemory(modalAgent, content.trim(), category);
+        markStepDone('memory');
         setNotice('Memory saved.');
       } else if (modal) {
         await api.updateMemory(modal.id, content.trim(), category);
@@ -86,17 +88,15 @@ export function MemoryView() {
     }
   }
 
-  const inputCls =
-    'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600';
-  const selectCls =
-    'rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-600';
-
   return (
     <div className="space-y-4">
-      <p className="max-w-2xl text-sm leading-relaxed text-slate-600">
-        Stored facts the agents recall at run time — vendor details, policies, preferences and constraints.
-        What an agent remembers shapes what it does, so every fact is listed, editable and deletable.
-      </p>
+      <div>
+        <h1 className="text-xl font-semibold text-ink">Memory</h1>
+        <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted">
+          Stored facts the agents recall at run time — vendor details, policies, preferences and constraints.
+          What an agent remembers shapes what it does, so every fact is listed, editable and deletable.
+        </p>
+      </div>
 
       <div className="flex flex-wrap items-center gap-3">
         <select value={agentFilter} onChange={(e) => setAgentFilter(e.target.value)} className={selectCls} aria-label="Filter by agent">
@@ -107,48 +107,52 @@ export function MemoryView() {
         </select>
         <div className="ml-auto">
           <Button variant="primary" onClick={openAdd}>
-            <Plus className="h-4 w-4" /> Add memory
+            <Plus className="h-4 w-4" strokeWidth={1.5} /> Add memory
           </Button>
         </div>
       </div>
 
       {notice && (
-        <div className="rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">{notice}</div>
+        <div className="rounded-lg border border-accent/30 bg-tint-teal px-4 py-3 text-sm text-accent-dark">{notice}</div>
       )}
 
       {loading ? (
-        <p className="text-sm text-slate-500">Loading memory…</p>
+        <p className="text-sm text-muted">Loading memory…</p>
       ) : error ? (
         <EmptyState title="Could not load memory" body={error} />
       ) : items.length === 0 ? (
-        <EmptyState title="No memories stored" body="Add the first fact for this agent." />
+        <EmptyState
+          title="No memories stored"
+          body="Add the first fact for this agent."
+          action={<Button variant="primary" onClick={openAdd}>Add memory</Button>}
+        />
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {items.map((item) => (
-            <Card key={item.id} className="flex flex-col p-5">
+            <Card key={item.id} className="flex flex-col p-5 transition-shadow hover:shadow-sm">
               <div className="flex items-start gap-2.5">
-                <Brain className="mt-0.5 h-4 w-4 shrink-0 text-teal-600" />
-                <p className="flex-1 text-sm leading-relaxed text-slate-800">{item.content}</p>
+                <Brain className="mt-0.5 h-4 w-4 shrink-0 text-accent" strokeWidth={1.5} />
+                <p className="flex-1 text-sm leading-relaxed text-ink">{item.content}</p>
               </div>
-              <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-3">
+              <div className="mt-4 flex items-center gap-2 border-t border-border/60 pt-3">
                 <Badge tone="teal">{item.category}</Badge>
-                <span className="text-xs capitalize text-slate-500">{item.agent_id}</span>
-                <span className="text-xs text-slate-400">· {fmtDateTime(item.created_at)}</span>
+                <span className="text-xs capitalize text-muted">{item.agent_id}</span>
+                <span className="text-xs text-faint">· {fmtDateTime(item.created_at)}</span>
                 <span className="ml-auto flex gap-1">
                   <button
                     onClick={() => openEdit(item)}
-                    className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                    className="rounded-md p-1.5 text-faint hover:bg-wash hover:text-ink"
                     aria-label="Edit memory"
                   >
-                    <Pencil className="h-4 w-4" />
+                    <Pencil className="h-4 w-4" strokeWidth={1.5} />
                   </button>
                   <button
                     onClick={() => remove(item)}
                     disabled={deletingId === item.id}
-                    className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                    className="rounded-md p-1.5 text-faint hover:bg-tint-error hover:text-error disabled:opacity-50"
                     aria-label="Delete memory"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-4 w-4" strokeWidth={1.5} />
                   </button>
                 </span>
               </div>
@@ -162,8 +166,8 @@ export function MemoryView() {
           <div className="space-y-4">
             {modal === 'add' && (
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor="mem-agent">Agent</label>
-                <select id="mem-agent" value={modalAgent} onChange={(e) => setModalAgent(e.target.value)} className={selectCls}>
+                <label className="mb-1.5 block text-[13px] font-medium text-ink" htmlFor="mem-agent">Agent</label>
+                <select id="mem-agent" value={modalAgent} onChange={(e) => setModalAgent(e.target.value)} className={`${selectCls} w-full`}>
                   {agents.map((a) => (
                     <option key={a.id} value={a.id}>{a.name}</option>
                   ))}
@@ -171,7 +175,7 @@ export function MemoryView() {
               </div>
             )}
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor="mem-content">Fact</label>
+              <label className="mb-1.5 block text-[13px] font-medium text-ink" htmlFor="mem-content">Fact</label>
               <textarea
                 id="mem-content"
                 value={content}
@@ -182,8 +186,8 @@ export function MemoryView() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor="mem-category">Category</label>
-              <select id="mem-category" value={category} onChange={(e) => setCategory(e.target.value)} className={selectCls}>
+              <label className="mb-1.5 block text-[13px] font-medium text-ink" htmlFor="mem-category">Category</label>
+              <select id="mem-category" value={category} onChange={(e) => setCategory(e.target.value)} className={`${selectCls} w-full`}>
                 {CATEGORIES.map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}

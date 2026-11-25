@@ -14,6 +14,7 @@ export default function App() {
   const [view, setView] = useState<View>('dashboard');
   const [selectedRun, setSelectedRun] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
+  const [runsNewOpen, setRunsNewOpen] = useState(false);
 
   // Probe the backend once on startup; the API client falls back to demo
   // mode automatically if it is unreachable.
@@ -38,18 +39,31 @@ export default function App() {
 
   function navigate(v: View) {
     setSelectedRun(null);
+    setRunsNewOpen(false);
     setView(v);
   }
 
   function openRun(runId: string) {
     setSelectedRun(runId);
+    setRunsNewOpen(false);
+    setView('runs');
+  }
+
+  /** Sidebar "+ New run": open Runs with the new-run form already open. */
+  function newRun() {
+    setSelectedRun(null);
+    setRunsNewOpen(true);
     setView('runs');
   }
 
   return (
-    <Layout view={view} onNavigate={navigate} mode={mode} pendingCount={pendingCount}>
-      {view === 'dashboard' && <Dashboard onOpenRun={openRun} onGoApprovals={() => navigate('approvals')} />}
-      {view === 'runs' && selectedRun === null && <Runs onOpenRun={openRun} />}
+    <Layout view={view} onNavigate={navigate} onNewRun={newRun} mode={mode} pendingCount={pendingCount}>
+      {view === 'dashboard' && (
+        <Dashboard onOpenRun={openRun} onGoApprovals={() => navigate('approvals')} onGoRuns={() => navigate('runs')} />
+      )}
+      {view === 'runs' && selectedRun === null && (
+        <Runs onOpenRun={openRun} showNew={runsNewOpen} onShowNewChange={setRunsNewOpen} />
+      )}
       {view === 'runs' && selectedRun !== null && <RunDetail runId={selectedRun} onBack={() => setSelectedRun(null)} />}
       {view === 'approvals' && <Approvals />}
       {view === 'evals' && <Evals />}

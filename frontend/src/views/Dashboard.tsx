@@ -1,9 +1,17 @@
-import { AlertTriangle, ArrowRight, Coins, Flame, Gauge, Play } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { AlertTriangle, ArrowRight, Calendar, Coins, Flame, Gauge, Play } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { fmtDateTime, fmtMoney, levelTone, pct } from '../lib/format';
 import type { FailureMode, Run, Stats } from '../lib/types';
-import { Badge, BarChart, Card, CardHeader, EmptyState, Sparkline, StatusBadge } from '../components/ui';
+import { Badge, BarChart, Button, Card, CardHeader, EmptyState, SectionHeader, Sparkline, StatusBadge } from '../components/ui';
+import { AskBox } from '../components/AskBox';
+
+function greeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning, Saad.';
+  if (hour < 18) return 'Good afternoon, Saad.';
+  return 'Good evening, Saad.';
+}
 
 function levelLabel(level: string): string {
   if (level === 'Production-grade') return 'Production-grade — trusted with real work';
@@ -11,11 +19,20 @@ function levelLabel(level: string): string {
   return 'Fragile — early days, watch it closely';
 }
 
-export function Dashboard({ onOpenRun, onGoApprovals }: { onOpenRun: (id: string) => void; onGoApprovals: () => void }) {
+const SUGGESTIONS = [
+  { label: 'Research a vendor', task: 'Research vendor Acme Corp and draft a brief' },
+  { label: 'Update the CRM', task: 'Update the CRM record for Globex Ltd with the latest contact' },
+  { label: 'Draft a vendor brief', task: 'Draft a brief on vendor Initech from the latest research' },
+];
+
+export function Dashboard({ onOpenRun, onGoApprovals, onGoRuns }: { onOpenRun: (id: string) => void; onGoApprovals: () => void; onGoRuns: () => void }) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [failureModes, setFailureModes] = useState<FailureMode[]>([]);
   const [recentRuns, setRecentRuns] = useState<Run[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [askTask, setAskTask] = useState('');
+  const [askSeed, setAskSeed] = useState(0);
+  const askRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,7 +50,7 @@ export function Dashboard({ onOpenRun, onGoApprovals }: { onOpenRun: (id: string
   }, []);
 
   if (error) return <EmptyState title="Could not load the dashboard" body={error} />;
-  if (!stats) return <p className="text-sm text-slate-500">Loading dashboard…</p>;
+  if (!stats) return <p className="text-sm text-muted">Loading dashboard…</p>;
 
   const tone = levelTone(stats.level);
   const statCards = [
@@ -44,128 +61,184 @@ export function Dashboard({ onOpenRun, onGoApprovals }: { onOpenRun: (id: string
   ];
 
   return (
-    <div className="space-y-6">
-      {/* Reliability hero */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="p-6 shadow-[0_12px_36px_-18px_rgba(13,148,136,0.45)] ring-1 ring-teal-100 lg:col-span-2">
-          <div className="flex flex-wrap items-start justify-between gap-6">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Reliability score</p>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-6xl font-bold tabular-nums tracking-tight text-slate-900">{stats.reliability_score}</span>
-                <span className="text-lg font-medium text-slate-400">/ 100</span>
+    <div className="space-y-8">
+      {/* Greeting + ask — Attio's home: a large greeting, then the big "Ask anything…" box */}
+      <div className="mx-auto max-w-[720px] pt-2">
+        <h1 className="text-[28px] font-semibold leading-tight tracking-tight text-ink">{greeting()}</h1>
+        <div className="mt-5">
+          <AskBox
+            key={askSeed}
+            initialTask={askTask}
+            inputRef={askRef}
+            onRunCreated={onOpenRun}
+          />
+        </div>
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+          {SUGGESTIONS.map((s) => (
+            <button
+              key={s.label}
+              onClick={() => {
+                // Remount the AskBox with the suggestion pre-filled, then focus it.
+                setAskTask(s.task);
+                setAskSeed((n) => n + 1);
+                setTimeout(() => askRef.current?.focus(), 0);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1.5 text-[13px] text-body transition-colors hover:border-border-strong hover:bg-wash"
+            >
+              <Calendar className="h-3.5 w-3.5 text-muted" strokeWidth={1.5} />
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Reliability */}
+      <section>
+        <SectionHeader title="Reliability" meta={`${stats.reliability_score} / 100 · ${stats.level}`} />
+        <div className="grid gap-6 lg:grid-cols-3">
+          <Card className="p-6 lg:col-span-2">
+            <div className="flex flex-wrap items-start justify-between gap-6">
+              <div>
+                <p className="text-[13px] font-medium text-muted">Reliability score</p>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-[40px] font-semibold tabular-nums leading-none tracking-tight text-ink">{stats.reliability_score}</span>
+                  <span className="text-lg font-medium text-faint">/ 100</span>
+                </div>
+                <div className="mt-3">
+                  <Badge tone={tone}>{stats.level}</Badge>
+                  <p className="mt-2 text-sm text-muted">{levelLabel(stats.level)}</p>
+                </div>
               </div>
-              <div className="mt-3">
-                <Badge tone={tone}>{stats.level}</Badge>
-                <p className="mt-2 text-sm text-slate-500">{levelLabel(stats.level)}</p>
+              <div className="flex flex-col items-end gap-1">
+                <Sparkline values={stats.reliability_trend} width={180} height={48} />
+                <p className="text-xs text-faint">
+                  Last 7 eval windows · {stats.reliability_trend[0]} → {stats.reliability_trend[stats.reliability_trend.length - 1]}
+                </p>
               </div>
             </div>
-            <div className="flex flex-col items-end gap-1">
-              <Sparkline values={stats.reliability_trend} width={180} height={48} />
-              <p className="text-xs text-slate-400">
-                Last 7 eval windows · {stats.reliability_trend[0]} → {stats.reliability_trend[stats.reliability_trend.length - 1]}
+          </Card>
+          <Card className="flex flex-col justify-between p-6">
+            <div>
+              <p className="text-[13px] font-medium text-muted">Hardening</p>
+              <p className="mt-2 text-sm leading-relaxed text-body">
+                Every failed run becomes a quest. Fix the failure mode, earn XP, and the score climbs.
               </p>
             </div>
-          </div>
-        </Card>
-        <Card className="flex flex-col justify-between p-6">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Hardening</p>
-            <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              Every failed run becomes a quest. Fix the failure mode, earn XP, and the score climbs.
-            </p>
-          </div>
-          <div className="mt-4">
-            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-              <div className="h-full rounded-full bg-teal-600" style={{ width: `${stats.reliability_score}%` }} />
-            </div>
-            <p className="mt-2 text-xs text-slate-500">
-              {100 - stats.reliability_score} points to a perfect score
-            </p>
-          </div>
-        </Card>
-      </div>
-
-      {/* Stat cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((s) => {
-          const Icon = s.icon;
-          return (
-            <Card key={s.label} className="p-5">
-              <div className="flex items-center gap-2 text-slate-500">
-                <Icon className="h-4 w-4" />
-                <p className="text-xs font-medium">{s.label}</p>
+            <div className="mt-4">
+              <div className="h-2 overflow-hidden rounded-full bg-tint-neutral">
+                <div className="h-full rounded-full bg-accent" style={{ width: `${stats.reliability_score}%` }} />
               </div>
-              <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-slate-900">{s.value}</p>
-              <p className="mt-1 text-xs text-slate-500">{s.sub}</p>
-            </Card>
-          );
-        })}
-      </div>
+              <p className="mt-2 text-xs text-muted">
+                {100 - stats.reliability_score} points to a perfect score
+              </p>
+            </div>
+          </Card>
+        </div>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {statCards.map((s) => {
+            const Icon = s.icon;
+            return (
+              <Card key={s.label} className="p-5">
+                <div className="flex items-center gap-2 text-muted">
+                  <Icon className="h-4 w-4" strokeWidth={1.5} />
+                  <p className="text-[13px] font-medium">{s.label}</p>
+                </div>
+                <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight text-ink">{s.value}</p>
+                <p className="mt-1 text-xs text-muted">{s.sub}</p>
+              </Card>
+            );
+          })}
+        </div>
+      </section>
 
       {/* Cost + failure modes */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader title="Cost over time" subtitle="Estimated spend per day, local deterministic model" />
-          <div className="px-4 py-3">
-            <BarChart data={stats.cost_over_time} />
-          </div>
-        </Card>
-        <Card>
-          <CardHeader
-            title="Top failure modes"
-            subtitle="Where reliability is lost — each one has a quest attached"
-            action={
-              <button onClick={onGoApprovals} className="inline-flex items-center gap-1 text-xs font-medium text-teal-600 hover:text-teal-700">
-                Review queue <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-            }
-          />
-          <ul className="divide-y divide-slate-100">
-            {failureModes.slice(0, 5).map((f) => (
-              <li key={f.mode} className="flex items-center gap-3 px-5 py-3">
-                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-mono text-[13px] text-slate-800">{f.mode}</p>
-                  <p className="text-xs text-slate-500">
-                    {f.count} occurrences · {Math.round(f.share * 100)}% of failures · last seen {fmtDateTime(f.last_seen)}
-                  </p>
-                </div>
-                {f.quest && <Badge tone="teal">+{f.quest.xp} XP</Badge>}
-              </li>
-            ))}
-          </ul>
-        </Card>
-      </div>
+      <section>
+        <SectionHeader title="Cost & failure modes" />
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader title="Cost over time" subtitle="Estimated spend per day, local deterministic model" />
+            <div className="px-4 py-3">
+              <BarChart data={stats.cost_over_time} />
+            </div>
+          </Card>
+          <Card>
+            <CardHeader
+              title="Top failure modes"
+              subtitle="Where reliability is lost — each one has a quest attached"
+              action={
+                <button onClick={onGoApprovals} className="inline-flex items-center gap-1 text-[13px] font-medium text-accent hover:text-accent-dark">
+                  Review queue <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.5} />
+                </button>
+              }
+            />
+            <ul className="divide-y divide-border/60">
+              {failureModes.slice(0, 5).map((f) => (
+                <li key={f.mode} className="flex items-center gap-3 px-5 py-3">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-warning" strokeWidth={1.5} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-mono text-[13px] text-ink">{f.mode}</p>
+                    <p className="text-xs text-muted">
+                      {f.count} occurrences · {Math.round(f.share * 100)}% of failures · last seen {fmtDateTime(f.last_seen)}
+                    </p>
+                  </div>
+                  {f.quest && <Badge tone="teal">+{f.quest.xp} XP</Badge>}
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </div>
+      </section>
 
       {/* Recent runs */}
-      <Card>
-        <CardHeader title="Recent runs" subtitle="Latest agent executions across all agents" />
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 text-xs text-slate-500">
-                <th className="px-5 py-3 font-medium">Task</th>
-                <th className="px-5 py-3 font-medium">Agent</th>
-                <th className="px-5 py-3 font-medium">Status</th>
-                <th className="px-5 py-3 font-medium">Cost</th>
-                <th className="px-5 py-3 font-medium">Started</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {recentRuns.map((r) => (
-                <tr key={r.run_id} className="cursor-pointer hover:bg-slate-50" onClick={() => onOpenRun(r.run_id)}>
-                  <td className="max-w-xs truncate px-5 py-3 font-medium text-slate-900">{r.task}</td>
-                  <td className="px-5 py-3 capitalize text-slate-600">{r.agent_id}</td>
-                  <td className="px-5 py-3"><StatusBadge status={r.status} /></td>
-                  <td className="px-5 py-3 tabular-nums text-slate-600">{fmtMoney(r.cost_usd)}</td>
-                  <td className="px-5 py-3 text-slate-500">{fmtDateTime(r.started_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+      <section>
+        <SectionHeader
+          title="Recent runs"
+          action={
+            <button onClick={onGoRuns} className="inline-flex items-center gap-1 text-[13px] font-medium text-accent hover:text-accent-dark">
+              View all <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.5} />
+            </button>
+          }
+        />
+        <Card>
+          {recentRuns.length === 0 ? (
+            <EmptyState
+              title="No runs yet"
+              body="Ask an agent to do something above — the run will show up here with its full trace."
+              action={
+                <Button variant="accent" onClick={() => askRef.current?.focus()}>
+                  <Play className="h-4 w-4" strokeWidth={1.5} /> Start a run
+                </Button>
+              }
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-border/60 text-xs uppercase tracking-[0.04em] text-muted">
+                    <th className="px-5 py-3 font-medium">Task</th>
+                    <th className="px-5 py-3 font-medium">Agent</th>
+                    <th className="px-5 py-3 font-medium">Status</th>
+                    <th className="px-5 py-3 font-medium">Cost</th>
+                    <th className="px-5 py-3 font-medium">Started</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {recentRuns.map((r) => (
+                    <tr key={r.run_id} className="cursor-pointer hover:bg-wash" onClick={() => onOpenRun(r.run_id)}>
+                      <td className="max-w-xs truncate px-5 py-3 font-medium text-ink">{r.task}</td>
+                      <td className="px-5 py-3 capitalize text-body">{r.agent_id}</td>
+                      <td className="px-5 py-3"><StatusBadge status={r.status} /></td>
+                      <td className="px-5 py-3 tabular-nums text-body">{fmtMoney(r.cost_usd)}</td>
+                      <td className="px-5 py-3 text-muted">{fmtDateTime(r.started_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      </section>
     </div>
   );
 }

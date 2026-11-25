@@ -1,11 +1,17 @@
 import type { ReactNode } from 'react';
-import { FlaskConical } from 'lucide-react';
+import { FlaskConical, X } from 'lucide-react';
 import type { RunStatus, TraceStatus } from '../lib/types';
 import { cn } from '../lib/cn';
 
+/** Shared form control styling (DESIGN.md: white, 1px hairline border, teal focus ring). */
+export const inputCls =
+  'w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none focus:ring-4 focus:ring-accent/10 disabled:bg-wash disabled:text-faint';
+export const selectCls =
+  'rounded-lg border border-border bg-white px-2.5 py-2 text-sm text-body focus:border-accent focus:outline-none focus:ring-4 focus:ring-accent/10';
+
 export function Card({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn('rounded-xl border border-slate-200 bg-white shadow-sm', className)}>
+    <div className={cn('rounded-lg border border-border bg-white', className)}>
       {children}
     </div>
   );
@@ -13,32 +19,45 @@ export function Card({ children, className }: { children: ReactNode; className?:
 
 export function CardHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+    <div className="flex items-start justify-between gap-4 border-b border-border/60 px-5 py-4">
       <div>
-        <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
-        {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
+        <h2 className="text-base font-semibold text-ink">{title}</h2>
+        {subtitle && <p className="mt-0.5 text-[13px] text-muted">{subtitle}</p>}
       </div>
       {action}
     </div>
   );
 }
 
-type BadgeTone = 'slate' | 'teal' | 'emerald' | 'amber' | 'red' | 'sky';
+/**
+ * Section header — Attio's "Meetings" / "Tasks 0" row: a quiet 16px semibold
+ * title on the left, a muted meta note or a small action on the right.
+ * Used to group the content of a view; the cards below it carry the detail.
+ */
+export function SectionHeader({ title, meta, action }: { title: string; meta?: string; action?: ReactNode }) {
+  return (
+    <div className="mb-3 flex items-baseline justify-between gap-4">
+      <h2 className="text-base font-semibold text-ink">{title}</h2>
+      {action ?? (meta ? <span className="text-[13px] text-muted">{meta}</span> : null)}
+    </div>
+  );
+}
+
+type BadgeTone = 'neutral' | 'teal' | 'success' | 'warning' | 'error';
 
 const toneClasses: Record<BadgeTone, string> = {
-  slate: 'bg-slate-100 text-slate-700 ring-slate-200',
-  teal: 'bg-teal-50 text-teal-700 ring-teal-200',
-  emerald: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  amber: 'bg-amber-50 text-amber-700 ring-amber-200',
-  red: 'bg-red-50 text-red-700 ring-red-200',
-  sky: 'bg-sky-50 text-sky-700 ring-sky-200',
+  neutral: 'bg-tint-neutral text-[#4b5563]',
+  teal: 'bg-tint-teal text-accent',
+  success: 'bg-tint-success text-success',
+  warning: 'bg-tint-warning text-warning',
+  error: 'bg-tint-error text-error',
 };
 
-export function Badge({ tone = 'slate', children, className }: { tone?: BadgeTone; children: ReactNode; className?: string }) {
+export function Badge({ tone = 'neutral', children, className }: { tone?: BadgeTone; children: ReactNode; className?: string }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset',
+        'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium',
         toneClasses[tone],
         className,
       )}
@@ -50,21 +69,21 @@ export function Badge({ tone = 'slate', children, className }: { tone?: BadgeTon
 
 export function StatusBadge({ status }: { status: RunStatus | TraceStatus }) {
   const map: Record<string, { tone: BadgeTone; label: string }> = {
-    completed: { tone: 'emerald', label: 'Completed' },
-    running: { tone: 'sky', label: 'Running' },
-    awaiting_approval: { tone: 'amber', label: 'Awaiting approval' },
-    failed: { tone: 'red', label: 'Failed' },
-    blocked: { tone: 'red', label: 'Blocked' },
-    ok: { tone: 'emerald', label: 'OK' },
-    error: { tone: 'red', label: 'Error' },
-    rejected: { tone: 'red', label: 'Rejected' },
+    completed: { tone: 'success', label: 'Completed' },
+    running: { tone: 'teal', label: 'Running' },
+    awaiting_approval: { tone: 'warning', label: 'Awaiting approval' },
+    failed: { tone: 'error', label: 'Failed' },
+    blocked: { tone: 'error', label: 'Blocked' },
+    ok: { tone: 'success', label: 'OK' },
+    error: { tone: 'error', label: 'Error' },
+    rejected: { tone: 'error', label: 'Rejected' },
   };
-  const entry = map[status] ?? { tone: 'slate' as BadgeTone, label: status };
+  const entry = map[status] ?? { tone: 'neutral' as BadgeTone, label: status };
   return <Badge tone={entry.tone}>{entry.label}</Badge>;
 }
 
-type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
-type ButtonSize = 'sm' | 'md';
+type ButtonVariant = 'primary' | 'accent' | 'secondary' | 'danger' | 'ghost';
+type ButtonSize = 'sm' | 'md' | 'lg';
 
 export function Button({
   variant = 'secondary',
@@ -84,15 +103,21 @@ export function Button({
   type?: 'button' | 'submit';
 }) {
   const variants: Record<ButtonVariant, string> = {
-    primary: 'bg-teal-600 text-white hover:bg-teal-700 shadow-sm disabled:bg-teal-300',
+    primary:
+      'border border-ink bg-ink text-white hover:bg-black disabled:border-border disabled:bg-wash disabled:text-faint',
+    accent:
+      'border border-accent bg-accent text-white hover:bg-accent-dark disabled:border-border disabled:bg-wash disabled:text-faint',
     secondary:
-      'bg-white text-slate-700 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 disabled:text-slate-400',
-    danger: 'bg-red-600 text-white hover:bg-red-700 disabled:bg-red-300',
-    ghost: 'bg-transparent text-slate-600 hover:bg-slate-100 disabled:text-slate-300',
+      'border border-border bg-white text-ink hover:border-border-strong hover:bg-wash disabled:border-border disabled:bg-wash disabled:text-faint',
+    danger:
+      'border border-error bg-error text-white hover:bg-[#b91c1c] disabled:border-border disabled:bg-wash disabled:text-faint',
+    ghost:
+      'border border-transparent bg-transparent text-muted hover:bg-wash hover:text-ink disabled:text-faint',
   };
   const sizes: Record<ButtonSize, string> = {
-    sm: 'px-2.5 py-1.5 text-xs',
-    md: 'px-3.5 py-2 text-sm',
+    sm: 'px-3 py-1.5 text-[13px]',
+    md: 'px-4 py-2 text-sm',
+    lg: 'px-5 py-2.5 text-[15px]',
   };
   return (
     <button
@@ -100,7 +125,7 @@ export function Button({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        'inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 disabled:cursor-not-allowed',
+        'inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition-colors focus:outline-none focus-visible:ring-4 focus-visible:ring-accent/20 disabled:cursor-not-allowed',
         variants[variant],
         sizes[size],
         className,
@@ -113,8 +138,8 @@ export function Button({
 
 export function DemoBadge() {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">
-      <FlaskConical className="h-3.5 w-3.5" />
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-tint-warning px-2.5 py-1 text-xs font-medium text-warning">
+      <FlaskConical className="h-3.5 w-3.5" strokeWidth={1.5} />
       Demo mode — mock data
     </span>
   );
@@ -122,18 +147,19 @@ export function DemoBadge() {
 
 export function LiveBadge() {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">
-      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-tint-success px-2.5 py-1 text-xs font-medium text-success">
+      <span className="h-1.5 w-1.5 rounded-full bg-success" />
       Live — backend connected
     </span>
   );
 }
 
-export function EmptyState({ title, body }: { title: string; body: string }) {
+export function EmptyState({ title, body, action }: { title: string; body: string; action?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
-      <p className="text-sm font-medium text-slate-900">{title}</p>
-      <p className="mt-1 max-w-sm text-sm text-slate-500">{body}</p>
+    <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+      <p className="text-sm font-medium text-ink">{title}</p>
+      <p className="mt-1 max-w-sm text-[13px] text-muted">{body}</p>
+      {action && <div className="mt-5">{action}</div>}
     </div>
   );
 }
@@ -152,9 +178,9 @@ export function Sparkline({ values, width = 160, height = 40 }: { values: number
   const area = `2,${height - 2} ${pts.join(' ')} ${width - 2},${height - 2}`;
   return (
     <svg width={width} height={height} className="overflow-visible" role="img" aria-label="Reliability trend">
-      <polygon points={area} fill="#CCFBF1" opacity={0.6} />
-      <polyline points={pts.join(' ')} fill="none" stroke="#0D9488" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-      <circle cx={pts[pts.length - 1].split(',')[0]} cy={pts[pts.length - 1].split(',')[1]} r={3} fill="#0D9488" />
+      <polygon points={area} fill="#ccfbf1" opacity={0.6} />
+      <polyline points={pts.join(' ')} fill="none" stroke="#0d9488" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={pts[pts.length - 1].split(',')[0]} cy={pts[pts.length - 1].split(',')[1]} r={3} fill="#0d9488" />
     </svg>
   );
 }
@@ -166,13 +192,13 @@ export function BarChart({ data }: { data: { day: string; cost_usd: number }[] }
     <div className="flex items-end gap-3 px-1 pb-1 pt-2">
       {data.map((d) => (
         <div key={d.day} className="flex flex-1 flex-col items-center gap-1.5">
-          <span className="text-[11px] font-medium tabular-nums text-slate-500">${d.cost_usd.toFixed(2)}</span>
+          <span className="text-xs font-medium tabular-nums text-muted">${d.cost_usd.toFixed(2)}</span>
           <div
-            className="w-full max-w-10 rounded-t-md bg-teal-600/90"
+            className="w-full max-w-10 rounded-t-md bg-accent/90"
             style={{ height: `${Math.max(6, (d.cost_usd / max) * 96)}px` }}
             title={`${d.day}: $${d.cost_usd.toFixed(2)}`}
           />
-          <span className="text-[11px] text-slate-400">{new Date(d.day).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+          <span className="text-xs text-faint">{new Date(d.day).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
         </div>
       ))}
     </div>
@@ -189,15 +215,15 @@ export function Modal({
   children: ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4" onClick={onClose}>
       <div
-        className="w-full max-w-lg rounded-xl bg-white shadow-xl ring-1 ring-slate-200"
+        className="w-full max-w-lg rounded-xl border border-border bg-white shadow-md"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
-          <button onClick={onClose} className="rounded-md px-2 py-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Close">
-            ✕
+        <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
+          <h3 className="text-base font-semibold text-ink">{title}</h3>
+          <button onClick={onClose} className="rounded-md p-1.5 text-muted hover:bg-wash hover:text-ink" aria-label="Close">
+            <X className="h-4 w-4" strokeWidth={1.5} />
           </button>
         </div>
         <div className="px-5 py-4">{children}</div>

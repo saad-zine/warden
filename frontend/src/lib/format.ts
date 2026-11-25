@@ -31,8 +31,8 @@ export function pct(n: number): string {
   return `${Math.round(n * 100)}%`;
 }
 
-export function levelTone(level: string): 'amber' | 'teal' | 'emerald' {
-  if (level === 'Production-grade') return 'emerald';
+export function levelTone(level: string): 'warning' | 'teal' | 'success' {
+  if (level === 'Production-grade') return 'success';
   if (level === 'Battle-tested') return 'teal';
-  return 'amber';
+  return 'warning';
 }
