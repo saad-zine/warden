@@ -390,3 +390,15 @@ def complete_quest(quest_id: str, req: QuestCompleteRequest | None = None):
 @app.get("/api/eval-dataset")
 def eval_dataset():
     return analysis.build_eval_dataset_from_traces()
+
+
+# ---------- single-origin deploy: serve the dashboard frontend ----------
+# The React build (frontend/dist) is served from this same origin, so the
+# dashboard's API calls are relative (/api/...) and work behind any host
+# or tunnel without a separate frontend server. Only mounted when the
+# build exists; the API above always takes precedence.
+from fastapi.staticfiles import StaticFiles  # noqa: E402
+
+_FRONTEND_DIST = config.BACKEND_DIR.parent / "frontend" / "dist"
+if _FRONTEND_DIST.is_dir():
+    app.mount("/", StaticFiles(directory=str(_FRONTEND_DIST), html=True), name="frontend")
