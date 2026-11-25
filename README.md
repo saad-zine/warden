@@ -1,6 +1,6 @@
 # Warden
 
-![Warden](assets/logo-pill.png)
+<video src="assets/warden-intro.mp4" width="100%" autoplay muted loop playsinline></video>
 
 **The agent reliability platform.** Warden is the infrastructure that lets teams trust AI agents with real work.
 
