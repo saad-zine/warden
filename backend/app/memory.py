@@ -4,10 +4,16 @@ Memories are stored in SQLite and retrieved with BM25 (rank_bm25) — a
 lexical retrieval method. The agent injects the top-k retrieved memories
 into its context at the start of a run, so it remembers facts and
 preferences across sessions.
+
+Note on BM25Plus: classic BM25 IDF is log((N - df + 0.5)/(df + 0.5)),
+which is *negative* for terms that appear in most documents. With a small
+corpus (fewer than ~3 memories) that makes every score non-positive and
+retrieval silently returns nothing. BM25Plus uses log((N + 1)/df), which
+is always positive, so memory works from the very first row.
 """
 import re
 
-from rank_bm25 import BM25Okapi
+from rank_bm25 import BM25Plus
 
 from . import db
 
@@ -29,7 +35,7 @@ class MemoryStore:
             # The DB/tables may not exist yet (import time, before init_db).
             self._docs = []
         corpus = [_tokens(m["content"]) for m in self._docs]
-        self._bm25 = BM25Okapi(corpus) if corpus else None
+        self._bm25 = BM25Plus(corpus) if corpus else None
 
     def add(self, agent_id, content, category="fact"):
         mid = db.add_memory(agent_id, content, category)
@@ -49,17 +55,16 @@ class MemoryStore:
 
     def retrieve(self, query, agent_id=None, k=3):
         """Return the top-k memories relevant to `query` (BM25 scores)."""
+        if not self._docs:
+            self.refresh()
         docs = self._docs
         if agent_id:
             docs = [d for d in docs if d["agent_id"] == agent_id]
-        if not docs or self._bm25 is None:
+        if not docs:
             return []
-        # Rebuild the index on the filtered set if needed.
-        if agent_id:
-            corpus = [_tokens(d["content"]) for d in docs]
-            bm25 = BM25Okapi(corpus)
-        else:
-            bm25 = self._bm25
+        # Rebuild the index on the filtered set (cheap: memory is small).
+        corpus = [_tokens(d["content"]) for d in docs]
+        bm25 = BM25Plus(corpus)
         scores = bm25.get_scores(_tokens(query))
         ranked = sorted(zip(docs, scores), key=lambda x: x[1], reverse=True)
         out = []

@@ -13,8 +13,7 @@ from app.agents.graphs import resume_run, run_agent
 
 def _restart():
     """Simulate a process restart: drop all cached LangGraph objects."""
-    graphs._checkpointer = None
-    graphs._graphs = None
+    graphs.reset_caches()
 
 
 def test_run_survives_restart():

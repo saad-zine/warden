@@ -7,6 +7,19 @@ services:
     environment:
       - WARDEN_DATA_DB=/data/warden.db
       - WARDEN_CHECKPOINT_DB=/data/checkpoints.db
+      # Model provider: auto | openai | anthropic | ollama | deterministic.
+      # Export keys in your shell (or a project-root .env) before `docker compose up`.
+      - WARDEN_LLM=${WARDEN_LLM:-auto}
+      - WARDEN_LLM_MODEL=${WARDEN_LLM_MODEL:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # auto | real | mock
+      - WARDEN_TOOLS=${WARDEN_TOOLS:-auto}
+      - TAVILY_API_KEY=${TAVILY_API_KEY:-}
+      - BRAVE_API_KEY=${BRAVE_API_KEY:-}
+      - WARDEN_WORKERS=${WARDEN_WORKERS:-4}
+      - WARDEN_CORS_ORIGINS=${WARDEN_CORS_ORIGINS:-*}
     volumes:
       - warden-data:/data
     ports:

@@ -2,9 +2,13 @@ fastapi
 uvicorn[standard]
 pydantic
 python-multipart
+python-dotenv
 langgraph
 langgraph-checkpoint-sqlite
 langchain-core
+langchain-openai
+langchain-anthropic
 rank-bm25
 httpx
 pytest
+pytest-cov

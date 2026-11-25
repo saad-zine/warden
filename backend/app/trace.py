@@ -5,7 +5,6 @@ writes steps to the SQLite trace store (see db.py) and is passed to the
 agent graph so every node, tool call, LLM call, gate decision, and
 memory lookup is recorded with timing and cost.
 """
-import time
 
 from . import db
 

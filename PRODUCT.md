@@ -2,7 +2,7 @@
 
 ## What it is
 
-Warden is an agent reliability platform. It runs AI agents (LangGraph graphs) inside its own backend and wraps them in the control plane production teams need: durable execution with checkpoints, a full trace viewer with replay, human approval gates on risky actions, persistent cross-session memory, and a nightly eval suite that blocks deploys on regression.
+Warden is an agent reliability platform. It runs AI agents (LangGraph graphs) inside its own backend and wraps them in the control plane production teams need: any chat model behind one provider interface (OpenAI, Anthropic, Ollama, or an offline deterministic fallback), real tools with an SSRF guard, background execution with live streaming traces, durable execution with checkpoints, replay you can actually re-execute, human approval gates on risky actions, persistent cross-session memory that changes decisions, and a hermetic eval suite that blocks deploys on regression.
 
 ## Who it is for
 
@@ -10,11 +10,12 @@ AI engineers and small teams running agents in production (or about to). People 
 
 ## What it does (the core loop)
 
-- Start a run: pick an agent (Scout, Planner), give it a task.
-- Watch it work: every decision, tool call, and gate in the trace.
-- Approve the risky step: the agent pauses before CRM writes, sends, and deletes; a human approves or rejects.
+- Start a run: pick an agent (Scout, Planner), give it a task. The API queues it (202) and the UI follows it live over SSE.
+- Watch it work: every decision, tool call, and gate streams into the trace as it happens.
+- Approve the risky step: the agent pauses before CRM writes, sends, and deletes; a human approves or rejects (idempotently — a double click cannot act twice).
+- Reproduce it: verify the recording, or re-run the task for real and compare the tool sequence and outcome.
 - Learn from it: traces feed failure analysis, eval datasets, and the reliability score.
-- Block bad deploys: the eval suite replays 8 recorded scenarios against a new agent version; a regression blocks the deploy.
+- Block bad deploys: the eval suite replays 8 recorded scenarios (mock tools, so results are reproducible) against a new agent version; a regression blocks the deploy.
 
 ## Brand and voice
 

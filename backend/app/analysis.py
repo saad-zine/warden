@@ -6,7 +6,6 @@ identical consecutive failures, drop noise) and surfaces the top
 failure modes, the failure rate, and cost over time — the data that
 feeds the dashboard and the incident quests.
 """
-import re
 from collections import Counter, defaultdict
 
 from . import db
@@ -34,10 +33,10 @@ def clean_steps(steps):
 
 
 def _prod_runs(limit=1000):
-    """Runs that are not eval-suite runs (eval runs have version
-    'eval-*' and are test traffic, not production runs)."""
+    """Runs that are not eval-suite or replay runs (those are test traffic,
+    not production traffic)."""
     return [r for r in db.list_runs(limit=limit)
-            if not (r.get("version") or "").startswith("eval-")]
+            if not (r.get("version") or "").startswith(("eval-", "replay-"))]
 
 
 def failure_modes(limit=10):
@@ -91,7 +90,6 @@ def dashboard_stats():
     """Aggregate stats for the dashboard (production runs only)."""
     runs = _prod_runs()
     total = len(runs)
-    completed = [r for r in runs if r["status"] == "completed"]
     success = len([r for r in runs if r.get("success") == 1])
     success_rate = round(success / total, 3) if total else 0.0
     cost_total = round(sum(r.get("cost_usd", 0) for r in runs), 4)

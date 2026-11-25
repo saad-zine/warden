@@ -11,53 +11,80 @@ checkpointer) and runs / resumes / replays them.
 - replay_run: verify the recorded trace against the current agent plan
   and list the checkpoint history (state snapshots) for the thread.
 """
-import json
 import sqlite3
+import threading
 import time
 
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 
-from .. import config, db
+from .. import config, db, llm
 from ..guardrail import Guardrail
 from ..memory import MemoryStore
 from ..trace import Tracer
-from .model import DeterministicModel, derive_plan
+from .model import derive_plan
 from .planner import build_planner_graph
 from .scout import build_scout_graph
-from .tools import TOOL_NAMES, make_tools
+from .tools import make_tools
 
-_checkpointer = None
-_graphs = None
+# LangGraph compiles a checkpointer into the graph, and SqliteSaver owns a
+# single sqlite3 connection. Neither is safe to share across threads, so
+# each worker thread gets its own checkpointer + compiled graphs. SQLite is
+# in WAL mode with a busy timeout, so concurrent runs from the worker pool
+# serialise writes instead of corrupting or blocking forever.
+_local = threading.local()
+
+TERMINAL_STATUSES = {"completed", "failed", "blocked", "interrupted"}
+
+
+def _new_checkpointer():
+    conn = sqlite3.connect(
+        config.CHECKPOINT_DB, check_same_thread=False, timeout=30
+    )
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=30000")
+    return SqliteSaver(conn)
 
 
 def get_checkpointer():
-    global _checkpointer
-    if _checkpointer is None:
-        # SqliteSaver takes a live connection (from_conn_string returns a
-        # context manager, which is wrong for a long-lived app).
-        conn = sqlite3.connect(config.CHECKPOINT_DB, check_same_thread=False)
-        _checkpointer = SqliteSaver(conn)
-    return _checkpointer
+    """This thread's checkpointer (created on first use)."""
+    cp = getattr(_local, "checkpointer", None)
+    if cp is None:
+        cp = _new_checkpointer()
+        _local.checkpointer = cp
+    return cp
 
 
 def get_graphs():
-    global _graphs
-    if _graphs is None:
+    """This thread's compiled graphs (created on first use)."""
+    graphs = getattr(_local, "graphs", None)
+    if graphs is None:
         cp = get_checkpointer()
-        _graphs = {
+        graphs = {
             "scout": build_scout_graph(cp),
             "planner": build_planner_graph(cp),
         }
-    return _graphs
+        _local.graphs = graphs
+    return graphs
 
 
-def _build_config(run_id, thread_id, agent_id, tracer, behaviour, tool_names):
-    tools = make_tools(behaviour, tracer)
+def reset_caches():
+    """Drop cached graphs/checkpointers for the current thread.
+
+    Used by tests to simulate a process restart, and by any code that
+    changes the checkpoint database path at runtime.
+    """
+    _local.checkpointer = None
+    _local.graphs = None
+
+
+def _build_config(run_id, thread_id, agent_id, tracer, behaviour, tool_names,
+                  provider=None, tool_mode=None):
+    tools = make_tools(behaviour, tracer, mode=tool_mode)
     if tool_names is not None:
         tools = [t for t in tools if t.name in tool_names]
-    model = DeterministicModel(available_tools=[t.name for t in tools])
+    model = llm.build_chat_model(tools, provider=provider)
     return {
         "configurable": {
             "thread_id": thread_id,
@@ -148,20 +175,58 @@ def _handle_interrupt(run_id, agent_id, result_state, tracer):
 
 
 def run_agent(agent_id, task, behaviour=None, tool_names=None,
-              auto_decision=None, version="1.0.0"):
+              auto_decision=None, version="1.0.0",
+              run_id=None, thread_id=None, precreated=False,
+              provider=None, tool_mode=None):
     """Start a run. Returns a summary dict (with pending_approval if paused).
 
     auto_decision: None = pause for a human at the first approval gate;
     "approve" = auto-approve every gate (used by evals);
     "reject" = auto-reject every gate (used by evals).
+
+    thread_id / run_id / precreated let the background runner create the
+    row first (so the API can return immediately) and then execute here.
+    provider / tool_mode override configuration for evals and replay.
     """
     behaviour = behaviour or {}
-    run_id = db.new_id("run")
-    thread_id = db.new_id("th")
+    run_id = run_id or db.new_id("run")
+    thread_id = thread_id or db.new_id("th")
     started = time.time()
-    db.create_run(run_id, thread_id, agent_id, task, version)
+    provider_name = provider or llm.resolve_provider()
+    model_id = llm.model_name(provider_name)
+    if precreated:
+        db.update_run(run_id, status="running", provider=provider_name, model=model_id,
+                      started_at=time.time())
+    else:
+        db.create_run(run_id, thread_id, agent_id, task, version,
+                      provider=provider_name, model=model_id)
     tracer = Tracer(run_id)
-    cfg = _build_config(run_id, thread_id, agent_id, tracer, behaviour, tool_names)
+    tracer.log_node(
+        "model_config",
+        {"agent_id": agent_id},
+        {"provider": provider_name, "model": model_id,
+         "tools": tool_mode or config.TOOL_MODE},
+    )
+    try:
+        cfg = _build_config(run_id, thread_id, agent_id, tracer, behaviour,
+                            tool_names, provider=provider_name,
+                            tool_mode=tool_mode)
+    except llm.ModelConfigError as e:
+        tracer.log_node("model_config", {"agent_id": agent_id},
+                        {"error": str(e)}, status="error")
+        db.update_run(run_id, status="failed", success=0,
+                      result=f"Failed: model unavailable — {e}",
+                      failure_reason="model_config", ended_at=time.time(),
+                      duration_ms=int((time.time() - started) * 1000))
+        return {
+            "run_id": run_id,
+            "status": "failed",
+            "success": False,
+            "result": f"Failed: model unavailable — {e}",
+            "cost_usd": 0.0,
+            "tokens": 0,
+            "duration_ms": int((time.time() - started) * 1000),
+        }
     graph = get_graphs()[agent_id]
     result_state = graph.invoke(_initial_state(task, agent_id), cfg)
     # Auto-decision loop (used by the eval suite): keep resuming while
@@ -200,8 +265,12 @@ def resume_run(run_id, approval_id, approved, note=""):
     approval = db.get_approval(approval_id)
     if not approval:
         return {"error": "approval not found"}
-    db.decide_approval(approval_id, "approved" if approved else "rejected",
-                       decided_by="human", note=note)
+    if approval["status"] != "pending":
+        return {"error": f"approval already {approval['status']}"}
+    changed = db.decide_approval(approval_id, "approved" if approved else "rejected",
+                                 decided_by="human", note=note)
+    if not changed:
+        return {"error": "approval already decided"}
     started = time.time()
     tracer = Tracer(run_id)
     cfg = _build_config(run_id, run["thread_id"], run["agent_id"], tracer, {}, None)
@@ -222,10 +291,15 @@ def resume_run(run_id, approval_id, approved, note=""):
     return _finish_run(run_id, result_state, started)
 
 
-def replay_run(run_id):
-    """Verify the recorded trace against the current agent plan and list
-    the checkpoint history for the thread. No side effects: nothing is
-    re-executed."""
+def replay_run(run_id, execute=False):
+    """Verify the recorded trace against the current plan, and optionally
+    re-execute the task against the current agent to prove it reproduces.
+
+    Static mode has no side effects. `execute=True` really runs the agent
+    again (version "replay-*", excluded from dashboard stats), auto-deciding
+    gates the way the original run was decided, then compares the tool
+    sequence and outcome.
+    """
     run = db.get_run(run_id)
     if not run:
         return {"error": "run not found"}
@@ -262,7 +336,7 @@ def replay_run(run_id):
             })
     except Exception as e:
         checkpoints = [{"error": str(e)}]
-    return {
+    out = {
         "run_id": run_id,
         "replayed_steps": len(tool_steps),
         "expected_plan": expected,
@@ -270,6 +344,29 @@ def replay_run(run_id):
         "divergences": divergences,
         "checkpoints": checkpoints,
     }
+
+    if execute:
+        decisions = [a for a in db.list_approvals() if a["run_id"] == run_id]
+        auto = "reject" if any(a["status"] == "rejected" for a in decisions) else "approve"
+        again = run_agent(
+            run["agent_id"], run["task"], auto_decision=auto,
+            version=f"replay-{run.get('version') or '1.0.0'}",
+        )
+        again_tools = [s["name"] for s in db.get_trace(again["run_id"])
+                       if s["type"] == "tool"]
+        out["execution"] = {
+            "run_id": again["run_id"],
+            "status": again.get("status"),
+            "success": bool(again.get("success")),
+            "tools": again_tools,
+            "same_tool_sequence": again_tools == recorded,
+            "same_outcome": bool(again.get("success")) == bool(run.get("success")),
+            "cost_usd": again.get("cost_usd"),
+            "duration_ms": again.get("duration_ms"),
+            "matches": again_tools == recorded
+                       and bool(again.get("success")) == bool(run.get("success")),
+        }
+    return out
 
 
 AGENT_INFO = [

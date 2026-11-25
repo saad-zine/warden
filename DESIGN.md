@@ -168,6 +168,8 @@ white fill, body text, 1px border (#E5E7EB), pill. 6px/12px padding, 13px. Activ
   | Run trace steps | `GitBranch` (node), `Wrench` (tool), `Brain` (LLM/memory), `TriangleAlert` (gate) | step type |
   | Approve / Reject | `Check` / `X` | decision |
   | Replay trace | `RotateCcw` | replay |
+  | Verify trace / Re-run for real | `RotateCcw` / `Zap` | static verification vs actual re-execution |
+  | Live streaming indicator | `Radio` | the run is producing steps over SSE |
   | Back | `ArrowLeft` | back |
   | Close (modal) | `X` | close |
   | Demo-mode badge | `FlaskConical` | demo / mock data |

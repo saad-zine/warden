@@ -108,12 +108,17 @@ def run_suite(candidate="current"):
     results = []
     for sc in scenarios:
         t0 = time.time()
+        # Evals are a regression gate, so they must be hermetic: mock tools
+        # (fixed synthetic CRM/search data) keep the numbers reproducible and
+        # independent of network conditions. The live-tool path is exercised
+        # by the normal run API, not by the scoring suite.
         result = run_agent(
             sc["agent_id"], sc["task"],
             behaviour=sc.get("behaviour", {}),
             tool_names=tool_names,
             auto_decision=sc.get("auto_decision"),
             version=f"eval-{candidate}",
+            tool_mode="mock",
         )
         run_id = result["run_id"]
         passed, notes, tc, gate = _check(sc, result, run_id)

@@ -85,11 +85,40 @@ def _numbers(task):
     return [float(x) for x in re.findall(r"\d+(?:\.\d+)?", task)]
 
 
-def _build_expression(task):
+def _memory_text(messages):
+    """The system prompt (which carries retrieved memory) as one string."""
+    for m in messages:
+        if getattr(m, "type", "") == "system":
+            return str(getattr(m, "content", "") or "")
+    return ""
+
+
+def preferences(messages):
+    """Extract the small set of explicit preferences this offline model honours.
+
+    The real LLM reads the whole system prompt, so memory changes its plan
+    for free. The rule-based fallback cannot understand arbitrary text, so
+    it supports a documented subset of explicit preferences — enough to make
+    the memory feature observable and testable without a network model:
+
+      * "waive ... setup fee"  -> drop the one-off setup fee from the quote
+    """
+    text = _memory_text(messages).lower()
+    return {
+        "waive_setup_fee": ("waive" in text and "setup" in text),
+    }
+
+
+def _build_expression(task, prefs=None):
     nums = _numbers(task)
+    prefs = prefs or {}
     if len(nums) >= 2:
         expr = f"{nums[0]}*{nums[1]}"
-        if len(nums) >= 3 and any(w in task.lower() for w in ("plus", "setup", "fee", "and")):
+        if (
+            len(nums) >= 3
+            and any(w in task.lower() for w in ("plus", "setup", "fee", "and"))
+            and not prefs.get("waive_setup_fee")
+        ):
             expr += f"+{nums[2]}"
         return expr
     if len(nums) == 1:
@@ -112,6 +141,7 @@ def _tool_result(messages, tool_name):
 
 def _build_tool_args(tool_name, task, messages):
     subject = extract_subject(task)
+    prefs = preferences(messages)
     if tool_name == "web_search":
         return {"query": f"{subject} pricing and overview"}
     if tool_name == "web_fetch":
@@ -121,7 +151,7 @@ def _build_tool_args(tool_name, task, messages):
     if tool_name == "crm_lookup":
         return {"customer": subject}
     if tool_name == "calculator":
-        return {"expression": _build_expression(task)}
+        return {"expression": _build_expression(task, prefs)}
     if tool_name == "file_writer":
         fetch = _tool_result(messages, "web_fetch") or {}
         calc = _tool_result(messages, "calculator") or {}
@@ -227,7 +257,10 @@ class DeterministicModel(BaseChatModel):
         input_tokens = estimate_tokens(input_text)
         if next_step is not None:
             args = _build_tool_args(next_step["tool"], task, messages)
-            text = f"Next step: {next_step['tool']} — {next_step['why']}."
+            note = ""
+            if next_step["tool"] == "calculator" and preferences(messages).get("waive_setup_fee"):
+                note = " Applied memory preference: setup fee waived."
+            text = f"Next step: {next_step['tool']} — {next_step['why']}.{note}"
             output_tokens = estimate_tokens(text) + estimate_tokens(str(args))
             ai = AIMessage(
                 content=text,

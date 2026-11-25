@@ -12,9 +12,10 @@ from . import config
 
 
 def _connect():
-    conn = sqlite3.connect(config.DATA_DB)
+    conn = sqlite3.connect(config.DATA_DB, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=30000")
     return conn
 
 
@@ -99,11 +100,17 @@ def init_db():
         """
     )
     conn.commit()
-    # Migration: failure_reason column (added after the first runs).
+    # Migrations (added after the first release).
     cols = [r[1] for r in conn.execute("PRAGMA table_info(runs)").fetchall()]
-    if "failure_reason" not in cols:
-        conn.execute("ALTER TABLE runs ADD COLUMN failure_reason TEXT DEFAULT ''")
-        conn.commit()
+    for column, ddl in (
+        ("failure_reason", "ALTER TABLE runs ADD COLUMN failure_reason TEXT DEFAULT ''"),
+        ("provider", "ALTER TABLE runs ADD COLUMN provider TEXT DEFAULT ''"),
+        ("model", "ALTER TABLE runs ADD COLUMN model TEXT DEFAULT ''"),
+        ("request_id", "ALTER TABLE runs ADD COLUMN request_id TEXT DEFAULT ''"),
+    ):
+        if column not in cols:
+            conn.execute(ddl)
+            conn.commit()
     conn.close()
 
 
@@ -116,12 +123,14 @@ def now():
 
 
 # ---- runs ----
-def create_run(run_id, thread_id, agent_id, task, version):
+def create_run(run_id, thread_id, agent_id, task, version,
+               provider="", model="", status="running"):
     conn = _connect()
     conn.execute(
-        "INSERT INTO runs (run_id, thread_id, agent_id, task, status, version, started_at)"
-        " VALUES (?,?,?,?,?,?,?)",
-        (run_id, thread_id, agent_id, task, "running", version, now()),
+        "INSERT INTO runs (run_id, thread_id, agent_id, task, status, version,"
+        " provider, model, started_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        (run_id, thread_id, agent_id, task, status, version,
+         provider, model, now()),
     )
     conn.commit()
     conn.close()
@@ -221,6 +230,50 @@ def get_all_steps():
     rows = conn.execute("SELECT * FROM trace_steps ORDER BY ts ASC").fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def get_trace_after(run_id, seq=0):
+    """Trace steps with seq greater than `seq` (incremental reads for SSE)."""
+    conn = _connect()
+    rows = conn.execute(
+        "SELECT * FROM trace_steps WHERE run_id=? AND seq>? ORDER BY seq ASC",
+        (run_id, seq),
+    ).fetchall()
+    conn.close()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["input"] = json.loads(d.pop("input_json")) if d["input_json"] else None
+        d["output"] = json.loads(d.pop("output_json")) if d["output_json"] else None
+        out.append(d)
+    return out
+
+
+def recover_interrupted_runs():
+    """Close runs that were mid-flight when the process died.
+
+    Only the *paused* state is durable on purpose: a run interrupted at an
+    approval gate resumes from its checkpoint (that is the product claim,
+    and it is tested). A run killed mid-tool-call is marked failed rather
+    than silently replayed, because replaying a node can duplicate a side
+    effect (a second CRM write, a second email).
+    """
+    conn = _connect()
+    rows = conn.execute(
+        "SELECT run_id FROM runs WHERE status IN ('queued', 'running')"
+    ).fetchall()
+    ids = [r["run_id"] for r in rows]
+    for run_id in ids:
+        conn.execute(
+            "UPDATE runs SET status='failed', success=0, ended_at=?,"
+            " failure_reason='process_restart',"
+            " result='Failed: the worker process stopped mid-run.'"
+            " WHERE run_id=?",
+            (now(), run_id),
+        )
+    conn.commit()
+    conn.close()
+    return ids
 
 
 # ---- memories ----
@@ -330,14 +383,21 @@ def list_approvals(status=None):
 
 
 def decide_approval(approval_id, status, decided_by="human", note=""):
+    """Record a decision once. Returns 0 if it was already decided.
+
+    The WHERE clause makes double-clicks, retries and two humans racing on
+    the same approval idempotent: only the first decision takes effect.
+    """
     conn = _connect()
-    conn.execute(
+    cur = conn.execute(
         "UPDATE approvals SET status=?, decided_by=?, note=?, decided_at=?"
-        " WHERE id=?",
+        " WHERE id=? AND status='pending'",
         (status, decided_by, note, now(), approval_id),
     )
     conn.commit()
+    changed = cur.rowcount
     conn.close()
+    return changed
 
 
 # ---- evals ----

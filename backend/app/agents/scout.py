@@ -12,14 +12,14 @@ so execution survives a restart and can resume from the checkpoint.
 import time
 from typing import Annotated, TypedDict
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
-from langchain_core.runnables import RunnableConfig
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.types import interrupt
 
 from .. import config as app_config
-from .model import derive_plan, estimate_cost
+from .. import llm
+from .model import derive_plan, estimate_cost, estimate_tokens
 
 
 class AgentState(TypedDict):
@@ -63,18 +63,16 @@ def setup_node(state, config):
         {"query": state["task"], "agent_id": state["agent_id"]},
         {"memories": [m["content"] for m in found]},
     )
-    ctx = ""
-    if found:
-        ctx = "Relevant memories:\n" + "\n".join(
-            f"- {m['content']} ({m.get('category', 'fact')})" for m in found
-        )
-    tracer.log_node("setup", {"task": state["task"]},
-                    {"memories_found": len(found)},
-                    duration_ms=int((time.time() - started) * 1000))
-    msgs = []
-    if ctx:
-        msgs.append(SystemMessage(content=ctx))
-    return {"messages": msgs}
+    tool_names = sorted(cfg["tools"].keys())
+    prompt = llm.build_system_prompt(state["agent_id"], found, tool_names)
+    tracer.log_node(
+        "setup",
+        {"task": state["task"]},
+        {"memories_found": len(found), "prompt_chars": len(prompt),
+         "tools": tool_names},
+        duration_ms=int((time.time() - started) * 1000),
+    )
+    return {"messages": [SystemMessage(content=prompt)]}
 
 
 def agent_node(state, config):
@@ -122,10 +120,42 @@ def agent_node(state, config):
             "failure_reason": "max_iterations",
             "force_finalize": True,
         }
-    ai = model.invoke(state["messages"])
+    # Token limit (spend is checked above; a cheap model can still burn tokens).
+    if state.get("tokens", 0) > cfg.get("max_tokens", app_config.MAX_TOKENS_PER_RUN):
+        tracer.log_node("agent", {"task": state["task"]},
+                        {"halt": "token_limit"},
+                        duration_ms=int((time.time() - started) * 1000),
+                        status="error")
+        return {
+            "iterations": iterations,
+            "result": "Failed: token limit reached.",
+            "status": "failed",
+            "failure_reason": "token_limit",
+            "force_finalize": True,
+        }
+    try:
+        ai = llm.invoke_with_retry(model, state["messages"], tracer=tracer)
+    except Exception as e:
+        # A configured provider that fails must fail the run visibly — a
+        # silent fallback to the offline model would fake the eval numbers.
+        tracer.log_llm("model_error", {"messages": len(state["messages"])},
+                       {"error": str(e)[:500]}, status="error")
+        return {
+            "iterations": iterations,
+            "result": f"Failed: model call failed — {type(e).__name__}: {e}",
+            "status": "failed",
+            "failure_reason": "model_error",
+            "force_finalize": True,
+        }
     usage = getattr(ai, "usage_metadata", {}) or {}
     in_tok = usage.get("input_tokens", 0)
     out_tok = usage.get("output_tokens", 0)
+    if not (in_tok or out_tok):
+        # Providers that omit usage metadata: fall back to the documented
+        # word-count proxy rather than reporting a free run.
+        in_tok = estimate_tokens("\n".join(
+            str(getattr(m, "content", "")) for m in state["messages"]))
+        out_tok = estimate_tokens(ai.content)
     cost = estimate_cost(in_tok, out_tok)
     tokens = in_tok + out_tok
     tracer.log_llm(

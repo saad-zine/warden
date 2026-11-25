@@ -30,7 +30,9 @@ import type {
   ReplayResult,
   Run,
   RunDetail,
+  RunStatus,
   Stats,
+  TraceStep,
 } from './types';
 
 export type Mode = 'checking' | 'live' | 'demo';
@@ -255,8 +257,56 @@ export const api = {
       return { run_id: runId, status: 'blocked', result: 'Run blocked: the requested action was rejected.' };
     }),
 
-  replayRun: (runId: string) =>
-    liveOrDemo<ReplayResult>(`/api/runs/${runId}/replay`, { method: 'POST' }, () => demo.replay(runId)),
+  replayRun: (runId: string, execute = false) =>
+    liveOrDemo<ReplayResult>(
+      `/api/runs/${runId}/replay`,
+      { method: 'POST', body: JSON.stringify({ execute }) },
+      () => demo.replay(runId),
+    ),
+
+  /**
+   * Stream a run's trace steps over SSE. Returns an unsubscribe function.
+   * In demo mode there is nothing to stream, so the caller just keeps its
+   * existing snapshot (which is already complete).
+   */
+  streamRun: (
+    runId: string,
+    handlers: {
+      onStep?: (step: TraceStep) => void;
+      onStatus?: (status: { status: RunStatus; success: boolean }) => void;
+      onEnd?: () => void;
+      onError?: () => void;
+    },
+  ): (() => void) => {
+    if (mode !== 'live') return () => undefined;
+    const es = new EventSource(`${API_URL}/api/runs/${runId}/events`);
+    const parse = <T,>(e: Event): T | null => {
+      try {
+        return JSON.parse((e as MessageEvent).data) as T;
+      } catch {
+        return null;
+      }
+    };
+    es.addEventListener('step', (e) => {
+      const step = parse<TraceStep>(e);
+      if (step) handlers.onStep?.(step);
+    });
+    es.addEventListener('status', (e) => {
+      const status = parse<{ status: RunStatus; success: boolean }>(e);
+      if (status) handlers.onStatus?.(status);
+    });
+    es.addEventListener('end', () => {
+      es.close();
+      handlers.onEnd?.();
+    });
+    es.onerror = () => {
+      // Network drop or server restart: stop retrying and let the caller
+      // reconcile from the database (the trace is durable, SSE is a view).
+      es.close();
+      handlers.onError?.();
+    };
+    return () => es.close();
+  },
 
   approvals: (status = 'pending') =>
     liveOrDemo<Approval[]>(`/api/approvals?status=${status}`, undefined, () =>

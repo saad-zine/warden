@@ -11,7 +11,7 @@ provides the evidence.
 import re
 from pathlib import Path
 
-from rank_bm25 import BM25Okapi
+from rank_bm25 import BM25Plus
 
 from . import config
 
@@ -36,7 +36,7 @@ class Guardrail:
                     {"kind": kind, "name": path.name, "title": title, "text": text}
                 )
         corpus = [_tokens(d["text"]) for d in self.docs]
-        self._bm25 = BM25Okapi(corpus) if corpus else None
+        self._bm25 = BM25Plus(corpus) if corpus else None
 
     def needs_approval(self, tool_name):
         return tool_name in config.TOOLS_NEEDING_APPROVAL

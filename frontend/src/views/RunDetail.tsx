@@ -4,16 +4,18 @@ import {
   Check,
   GitBranch,
   Play,
+  Radio,
   RotateCcw,
   TriangleAlert,
   Wrench,
   X,
+  Zap,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { markStepDone } from '../lib/gettingStarted';
 import { fmtDateTime, fmtMoney, fmtMs, fmtTokens } from '../lib/format';
-import type { RunDetail, TraceStep, TraceStepType } from '../lib/types';
+import type { ReplayResult, RunDetail as RunDetailData, RunStatus, TraceStep, TraceStepType } from '../lib/types';
 import { Badge, Button, Card, CardHeader, EmptyState, StatusBadge, inputCls } from '../components/ui';
 import { cn } from '../lib/cn';
 
@@ -32,6 +34,9 @@ const STEP_LABEL: Record<TraceStepType, string> = {
   gate: 'Approval gate',
   memory: 'Memory',
 };
+
+/** Statuses where a worker is (or may be) still producing steps. */
+const ACTIVE_STATUSES: RunStatus[] = ['queued', 'running', 'resuming'];
 
 function StepRow({ step, index }: { step: TraceStep; index: number }) {
   const [open, setOpen] = useState(step.status !== 'ok');
@@ -93,20 +98,62 @@ function StepRow({ step, index }: { step: TraceStep; index: number }) {
 }
 
 export function RunDetail({ runId, onBack }: { runId: string; onBack: () => void }) {
-  const [run, setRun] = useState<RunDetail | null>(null);
+  const [run, setRun] = useState<RunDetailData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
+  const [replay, setReplay] = useState<ReplayResult | null>(null);
+  const [sseOk, setSseOk] = useState(true);
+  // Highest seq already in state, so a (re)connect asks only for new steps.
+  const lastSeq = useRef(0);
 
-  const load = () => {
-    api
+  const load = useCallback(() => {
+    return api
       .runDetail(runId)
-      .then(setRun)
+      .then((detail) => {
+        lastSeq.current = detail.trace.reduce((m, s) => Math.max(m, s.seq ?? 0), 0);
+        setRun(detail);
+        setSseOk(true);
+        setError(null);
+      })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load run'));
-  };
+  }, [runId]);
 
-  useEffect(load, [runId]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const active = !!run && ACTIVE_STATUSES.includes(run.status);
+  const streaming = active && sseOk;
+
+  // Follow the run while it executes. The stream is a view over the trace
+  // table, so a dropped connection only costs us the live updates — the
+  // reconnect/reload reads the durable rows.
+  useEffect(() => {
+    if (!active) return;
+    const stop = api.streamRun(runId, {
+      onStep: (step) => {
+        if (step.seq !== undefined) {
+          if (step.seq <= lastSeq.current) return;
+          lastSeq.current = step.seq;
+        }
+        setRun((prev) => (prev ? { ...prev, trace: [...prev.trace, step] } : prev));
+      },
+      onStatus: ({ status, success }) => {
+        setRun((prev) => (prev ? { ...prev, status, success } : prev));
+      },
+      onEnd: () => {
+        setSseOk(false);
+        void load();
+      },
+      onError: () => {
+        setSseOk(false);
+        void load();
+      },
+    });
+    return stop;
+  }, [active, runId, load]);
 
   async function decide(kind: 'approve' | 'reject') {
     if (!run?.pending_approval) return;
@@ -118,8 +165,10 @@ export function RunDetail({ runId, onBack }: { runId: string; onBack: () => void
           ? await api.approveRun(run.run_id, run.pending_approval.approval_id, note)
           : await api.rejectRun(run.run_id, run.pending_approval.approval_id, note);
       markStepDone('approval');
-      setNotice(`Run ${res.status === 'completed' ? 'resumed and completed' : res.status}.`);
-      load();
+      setNotice(`Decision recorded — run ${res.status}. Following it to completion below.`);
+      // The run resumes in the background; pick up the remaining steps live.
+      setRun((prev) => (prev ? { ...prev, status: 'resuming' as RunStatus } : prev));
+      await load();
     } catch (e) {
       setNotice(e instanceof Error ? e.message : 'Decision failed');
     } finally {
@@ -127,18 +176,40 @@ export function RunDetail({ runId, onBack }: { runId: string; onBack: () => void
     }
   }
 
-  async function replay() {
+  async function verifyReplay() {
     setBusy(true);
     setNotice(null);
     try {
-      const res = await api.replayRun(runId);
+      const res = await api.replayRun(runId, false);
+      setReplay(res);
       setNotice(
         res.divergences.length === 0
-          ? `Replayed ${res.replayed_steps} steps against the current agent version — no divergences. The trace reproduces cleanly.`
-          : `Replayed ${res.replayed_steps} steps — ${res.divergences.length} divergence(s) found. See the run history for details.`,
+          ? `Verified ${res.replayed_steps} recorded tool steps against the current plan — no divergences.`
+          : `Verified ${res.replayed_steps} recorded tool steps — ${res.divergences.length} divergence(s) found.`,
       );
     } catch (e) {
-      setNotice(e instanceof Error ? e.message : 'Replay failed');
+      setNotice(e instanceof Error ? e.message : 'Replay verification failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function executeReplay() {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const res = await api.replayRun(runId, true);
+      setReplay(res);
+      const exec = res.execution;
+      setNotice(
+        exec
+          ? exec.matches
+            ? `Re-executed the task as ${exec.run_id}: identical tool sequence and outcome in ${fmtMs(exec.duration_ms)}.`
+            : `Re-executed the task as ${exec.run_id}: it diverged from the original (tool sequence ${exec.same_tool_sequence ? 'matched' : 'differed'}, outcome ${exec.same_outcome ? 'matched' : 'differed'}).`
+          : 'Re-execution finished with no comparison data.',
+      );
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : 'Re-execution failed');
     } finally {
       setBusy(false);
     }
@@ -165,19 +236,30 @@ export function RunDetail({ runId, onBack }: { runId: string; onBack: () => void
           <div className="min-w-0">
             <h2 className="text-xl font-semibold text-ink">{run.task}</h2>
             <p className="mt-1 font-mono text-xs text-faint">
-              {run.run_id} · thread {run.run_id.replace('run_', 'th_')} · agent {run.agent_id}
+              {run.run_id} · agent {run.agent_id}
+              {run.version ? ` · v${run.version.replace(/^v/, '')}` : ''}
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <StatusBadge status={run.status} />
+              {streaming && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-tint-teal px-2.5 py-1 text-xs font-medium text-accent-dark">
+                  <Radio className="h-3 w-3 animate-pulse" strokeWidth={2} /> Streaming live
+                </span>
+              )}
               {run.success !== null && (
                 <Badge tone={run.success ? 'success' : 'error'}>{run.success ? 'Succeeded' : 'Failed'}</Badge>
               )}
+              {run.provider && <Badge tone="neutral">{run.provider}</Badge>}
+              {run.model && <Badge tone="neutral">{run.model}</Badge>}
               <Badge tone="neutral">{run.checkpoints} checkpoints saved</Badge>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={replay} disabled={busy}>
-              <RotateCcw className="h-4 w-4" strokeWidth={1.5} /> Replay trace
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={verifyReplay} disabled={busy || streaming}>
+              <RotateCcw className="h-4 w-4" strokeWidth={1.5} /> Verify trace
+            </Button>
+            <Button variant="primary" onClick={executeReplay} disabled={busy || streaming || active}>
+              <Zap className="h-4 w-4" strokeWidth={1.5} /> Re-run for real
             </Button>
           </div>
         </div>
@@ -196,6 +278,34 @@ export function RunDetail({ runId, onBack }: { runId: string; onBack: () => void
         </dl>
         {run.result && <p className="mt-4 rounded-lg border border-border bg-wash px-4 py-3 text-sm text-body">{run.result}</p>}
       </Card>
+
+      {replay?.execution && (
+        <Card className={cn('p-5', replay.execution.matches ? 'border-success/30 bg-tint-teal/40' : 'border-warning/30 bg-tint-warning/40')}>
+          <h3 className="text-sm font-semibold text-ink">
+            Re-execution {replay.execution.matches ? 'reproduced the original run' : 'diverged from the original run'}
+          </h3>
+          <dl className="mt-3 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+            {[
+              ['Replay run', replay.execution.run_id],
+              ['Tools', replay.execution.tools.join(' → ') || '—'],
+              ['Tool sequence', replay.execution.same_tool_sequence ? 'matched' : 'differed'],
+              ['Outcome', replay.execution.same_outcome ? 'matched' : 'differed'],
+            ].map(([k, v]) => (
+              <div key={k} className="min-w-0">
+                <dt className="text-xs text-muted">{k}</dt>
+                <dd className="mt-0.5 break-words font-medium text-ink">{v}</dd>
+              </div>
+            ))}
+          </dl>
+          {replay.divergences.length > 0 && (
+            <ul className="mt-3 list-inside list-disc text-sm text-warning">
+              {replay.divergences.map((d) => (
+                <li key={d}>{d}</li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      )}
 
       {run.pending_approval && (
         <Card className="border-warning/30 bg-tint-warning/50 p-5">
@@ -232,24 +342,33 @@ export function RunDetail({ runId, onBack }: { runId: string; onBack: () => void
       <Card>
         <CardHeader
           title="Trace"
-          subtitle={`${run.trace.length} steps recorded — every node, tool call, LLM call, gate and memory lookup, with timings and cost`}
+          subtitle={`${run.trace.length} steps recorded — every node, tool call, LLM call, gate and memory lookup, with timings and cost${
+            streaming ? ' (updating live)' : ''
+          }`}
         />
         <div className="px-5 py-5">
           {run.trace.length === 0 ? (
-            <EmptyState title="No trace steps recorded" body="This run has no recorded steps yet." />
+            <EmptyState
+              title={active ? 'Waiting for the agent to start' : 'No trace steps recorded'}
+              body={active ? 'Steps appear here as the worker emits them.' : 'This run has no recorded steps.'}
+            />
           ) : (
             <ul>
               {run.trace.map((s, i) => (
-                <StepRow key={`${s.ts}-${i}`} step={s} index={i} />
+                <StepRow key={s.seq ?? `${s.ts}-${i}`} step={s} index={i} />
               ))}
             </ul>
           )}
         </div>
       </Card>
 
-      <p className="flex items-center gap-1.5 text-xs text-faint">
-        <Play className="h-3.5 w-3.5" strokeWidth={1.5} />
-        Replay re-runs the recorded trace against the current agent version with tools in dry-run mode — no side effects.
+      <p className="flex items-start gap-1.5 text-xs text-faint">
+        <Play className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
+        <span>
+          “Verify trace” re-checks the recorded steps against the current plan without side effects. “Re-run for real”
+          executes the task again against the current agent (tagged as a replay run so dashboard stats ignore it) and
+          compares the tool sequence and outcome. Gated tools still pause for approval.
+        </span>
       </p>
     </div>
   );

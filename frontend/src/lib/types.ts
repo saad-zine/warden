@@ -1,6 +1,8 @@
 // Types mirroring the Warden API contract (docs/API.md v1).
 
 export type RunStatus =
+  | 'queued'
+  | 'resuming'
   | 'running'
   | 'awaiting_approval'
   | 'completed'
@@ -12,6 +14,8 @@ export type TraceStatus = 'ok' | 'error' | 'awaiting_approval' | 'rejected';
 export type TraceStepType = 'node' | 'tool' | 'llm' | 'gate' | 'memory';
 
 export interface TraceStep {
+  /** Monotonic per-run sequence number (used to dedupe streamed steps). */
+  seq?: number;
   type: TraceStepType;
   name: string;
   input: string;
@@ -41,6 +45,9 @@ export interface Run {
   duration_ms: number;
   started_at: string;
   ended_at: string | null;
+  version?: string;
+  provider?: string;
+  model?: string;
 }
 
 export interface PendingApproval {
@@ -154,12 +161,31 @@ export interface Health {
   runs: number;
   db: string;
   model: string;
+  version?: string;
+  provider?: string;
+  live_model?: boolean;
+  tools?: string;
+  workers?: number;
+  inflight?: number;
+}
+
+export interface ReplayExecution {
+  run_id: string;
+  status: RunStatus;
+  success: boolean;
+  tools: string[];
+  same_tool_sequence: boolean;
+  same_outcome: boolean;
+  cost_usd: number;
+  duration_ms: number;
+  matches: boolean;
 }
 
 export interface ReplayResult {
   run_id: string;
   replayed_steps: number;
-  divergences: { step: string; detail: string }[];
+  divergences: string[];
+  execution?: ReplayExecution;
 }
 
 export type LevelName = 'Fragile' | 'Battle-tested' | 'Production-grade';
