@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+pydantic
+python-multipart
+langgraph
+langgraph-checkpoint-sqlite
+langchain-core
+rank-bm25
+httpx
+pytest
