@@ -1,10 +1,10 @@
 import { cn } from '../lib/cn';
 
 /**
- * Warden mark — the approved Warden head icon (assets/icon-black.png),
+ * Warden mark — the geometric W logo from Canva (assets/warden-logo-canva.pdf),
  * served from the frontend public dir as /warden-icon.png.
- * A minimal black guardian head with two small horns. Clean and
- * professional like a modern SaaS logo — no pixel art, no game UI.
+ * Bold black angular shapes (three diagonal bars + two squares), Mobbin-style.
+ * Transparent background, so it sits clean on the white UI.
  */
 export function WardenMark({ className, size = 36 }: { className?: string; size?: number }) {
   return (
