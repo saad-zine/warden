@@ -1,6 +1,6 @@
 # Warden
 
-<video src="assets/warden-intro.mp4" width="100%" autoplay muted loop playsinline></video>
+![Warden — intro](https://github.com/saad-zine/warden/raw/main/assets/warden-intro.mp4)
 
 **The agent reliability platform.** Warden is the infrastructure that lets teams trust AI agents with real work.
 
