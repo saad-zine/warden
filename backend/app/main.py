@@ -123,7 +123,7 @@ class RunRequest(BaseModel):
 
 
 class DecisionRequest(BaseModel):
-    approval_id: str
+    approval_id: str | None = None
     note: str = ""
 
 
